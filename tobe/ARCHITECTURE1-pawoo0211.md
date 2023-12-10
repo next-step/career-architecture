@@ -14,4 +14,5 @@ flowchart TB
     B --> C[알람 데몬 서버에서 알람 전송]
     C -- Success --> D[주문완료]
     C -- Fail --> E[알람 재전송]
-    E -- Max retry fail --> F[알람 배치 서버에서 알람 일괄 재전송]
+    E -- Max retry fail --> F[알람 배치 서버에서 알람 테이블 조회]
+    F -- 알람 일괄 재전송
