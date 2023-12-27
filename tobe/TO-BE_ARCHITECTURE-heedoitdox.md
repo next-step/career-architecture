@@ -4,7 +4,7 @@
 ## #1 master db 만 사용 -> master / slave DB 사용
 
 ### 기대효과 분석
-- 쿼리 요청을 분담함으로써 DB 부하를 분산할 수 있다. (현재 Read transaction 이 Write transaction 에 비해 3배 정도 많다.)
+- 쿼리 요청을 분담함으로써 DB 부하를 분산할 수 있다. (현재 Read transaction 이 Write transaction 에 비해 2배 정도 많다.)
 - Slave 중 하나를 Master로 활용하면 되기 때문에 데이터를 백업하는 용도로도 사용할 수 있다.
 - 트래픽이 늘어남에 따른 병목현상을 완화 시킬 수 있다.
 
