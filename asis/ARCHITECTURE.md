@@ -36,4 +36,16 @@
 
 - 변경 후
 
-<img src="architecture2-rollo231.jpg">
+<img src="architecture2-rollo231.png">
+
+- apps(lap-api / queue)
+
+    - 별도의 서버로 배포될 애플리케이션
+
+    - 하나 하나가 단독으로 실행 가능한 모듈
+
+- libs
+
+    - 공유 라이브러리 역할
+
+    - apps 에서 이들을 의존해서 사용
