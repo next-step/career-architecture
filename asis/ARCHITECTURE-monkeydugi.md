@@ -10,83 +10,63 @@
 ## 🚀미션
 - 이름 : 이병덕
 ### 개선포인트 분석
-- 주소검토란 소재지 기준으로 해당 소재지가 등기소에 등록되어 있는지 검토하는 것이다.
-- CMS에서 조합원 명부 승인 시 엑셀 업로드를 하여 명부 등록한다. 이 때 주소 검토가 필수적으로 들어가는데 주소 검토 실패가 많다.
-- 주소 검토 실패가 발생하여 CMS 등록된 명부 목록 중 1건씩 직접 주소 재검토를 위해 주소 검토 버튼을 해야한다.
-- 주소 검토는 Third Party를 사용하는데 Third Party의 문제이다. 현재 1건씩 검토를 해도 30%확률로 실패한다.
-- Third Party에서는 해결을 해주지 않는 상황으로 추후 다른 Third Party로 바꿀 예정이지만 현재는 바꾸기엔
-- 만약 명부 5천 건 중 1천 건이 주소 검토를 실패하면 1건 씩 주소 검토 버튼을 클릭해야 한다.
-- 현재는 유저가 많지 않아서 명부 승인할 일이 많지는 않은 상태임에도 매번 승인 시 마다 재검토 시간으로 1시간이 낭비된다.
-- 앞으로 유저가 많아지면 하루에도 몇 번씩 명부 승인을 할텐데 수 시간으로 늘어날 것이다.
-
+```
+개선 포인트가 아닌 5월 20일부터 개발들어 갈 내용으로 잡아봤습니다. 이걸 주제로 변경하고 싶은 이유는 기존 내용보다 기술적으로 더 접근할 수 있을 것 같아서입니다.
+현재 상황이 Docq라는 회사에서 그쪽 리뉴얼로 인해 20일부터 API를 저희에게 제공할 수 있다고 해서 설계만 해놓은 상태입니다.
+기존 설계에서의 설계를 개선하여 20일부터 개발에 들어가는 시나리오를 생각하고 있습니다!
+리뷰로 남겨주신 병렬 처리 부분에 대한 내용이 이 부분과 동일한 부분이라서 차라리 이 주제로 변경하는 것이 업무와 더 연관이 되어 변경해보려고 합니다!
+```
 ### 프로세스
+해당 프로세스는 소재지에 대해 등기소에서 등기 내용이 변동된 것이 있는지 없는지 여부를 확인하는 API이다.
+등기가 변경된 내용이 있으면 "변경 있음"으로 화면에 보여주고, 해당 등기를 발급하면 "변경 없음"으로 변경된다.
+이로 인해 사용자는 등기가 변경되었는지 여부를 확인할 수 있어 변경된 등기는 발급하여 확인하는 기능이다.
+1. 명부 확정 시 3 ~ 5천 건 정도 데이터를 읽어 Queuing 한다.
+2. dom table에 등기 변동 여부 값을 디폴트 변동 없음으로 insert한다.
+3. Docq라는 등기소 Third Party에 등기 추적 요청 등록을 위해 loop를 돌며 3 ~ 5천 건을 MQ에 넣는다.
+4. Consumer는 3 ~ 5천 건을 각각 Docq에 요청한다. Docq는 비동기로 처리하기 때문에 이렇게 날려도 문제가 없다고 한다.
+5. Docq는 매일 변동 추적을 위해 매일 갱신한다.
+6. Docq에서 Callback을 받아 등기 변동 여부를 dom table에 변동 있음으로 갱신한다.(Docq에서는 변동이 있는 등기만 응답해준다.)
+7. 우리 시스템에서 변동된 등기가 있으면 직접 등기 발급 신청을 한다.
+8. 등기 발급 신청은 별도의 DB에 들어간다.
+9. 등기 발급 배치는 특정 DB를 읽어 4Click이라는 Third Party에서 등기 발급을 하고, dom table에 end_date를 now()로 갱신하고, 등기 변뎡 여부를 변동 없음으로 변경한다.
+10. 등기 발급 배치는 end_date로 Docq에게 변동 추석 수정 요청을 한다.
+- 
 ```mermaid
 flowchart TD
 	%% Colors %%
+	classDef blue fill:#2374f7,stroke-width:0px,color:#fff
 	classDef green fill:#137433,stroke-width:0px,color:#fff
 	classDef red fill:#FF3399,stroke-width:0px,color:#fff
+	classDef orange fill:#FFB226,stroke-width:0px,color:#fff
+	classDef yellow fill:#CCCC00,stroke-width:0px,color:#fff
 	classDef violet fill:#6600CC,stroke-width:0px,color:#fff
+		
+	Docq((Docq)):::green
+	RabbitMQ((RabbitMQ)):::orange
+	UnionRegiComplete(명부 확정 API):::blue
+	ConsumerAddDocq(Docq 등록 요청 Consumer):::red
+	dom[(data_table)]
+	unionTable[(명부 table)]
+	batch(등기 발급 Batch):::blue
+	CallbackAPI(Callback API):::red
+	AddColumn>컬럼 추가: 등기 변동 여부]:::red
 	
-	A(수기 처리):::red
-	
-	Start((Start))
-    ThirdParty((ThirdParty)):::violet
-    Success((Success)):::violet
-    Fail((Fail)):::violet
-    UnionRegi(명부 등록):::green
-    UnionRegiList(명부 목록):::green
-    UnionRegiFailList(주소 검토 실패 목록):::red
-    UnionRegiSuccessList(주소 검토 성공 목록):::green
-    CheckAddress(주소 검토 클릭):::red
-    
-    Start --> |명부 엑셀 업르도| UnionRegi
-    UnionRegi --> |주소 검토| ThirdParty
-    UnionRegi --> |주소 검토 여부 포함하여 생성| UnionRegiList
-    UnionRegiList --> |목록에서 실패 목록 찾기| UnionRegiFailList
-    UnionRegiList --> UnionRegiSuccessList
-    UnionRegiFailList --> |1건 씩| CheckAddress 
-    ThirdParty --> |30%| Fail
-    ThirdParty --> |70%| Success
-
-    linkStyle 3,5 stroke-width:4px, stroke:red
+	UnionRegiComplete --> |부동산등기 변동추적 등록 요청 - 엑셀 row 수 만큼 각각 queuing, ex: 5,000건| RabbitMQ
+	UnionRegiComplete --> |등기 변동 여부 갱신 - 변동 없음| dom
+	UnionRegiComplete --> |명부 확정으로 상태 변경| unionTable
+	RabbitMQ --> |Consume| ConsumerAddDocq
+	ConsumerAddDocq --> |부동산등기 변동추적 등록 요청| Docq
+	batch --> |end_date 갱신| dom
+	batch --> |등기 변동 여부 갱신 - 변동 없음| dom
+	batch --> |부동산등기 변동추적 수정 요청 - end_date| Docq
+	Docq --> |변동 정보| CallbackAPI --> |등기 변동 여부 갱신 - 변동 있음| dom
+    dom --- AddColumn
 ```
-### 시스템 프로세스
-```mermaid
-flowchart TD
-%% Colors %%
-  classDef green fill:#137433,stroke-width:0px,color:#fff
-  classDef red fill:#FF3399,stroke-width:0px,color:#fff
-  classDef violet fill:#6600CC,stroke-width:0px,color:#fff
-  classDef orange fill:#FFB226,stroke-width:0px,color:#fff
-
-  A(수기 처리):::red
-
-  Start((Start))
-  ThirdParty((ThirdParty)):::violet
-  Success((Success)):::violet
-  Fail((Fail)):::violet
-  UnionRegi(명부 등록):::green
-  UnionRegi(명부 등록):::green
-  UnionRegiList(명부 목록):::green
-  UnionRegiFailList(주소 검토 실패 목록):::red
-  UnionRegiSuccessList(주소 검토 성공 목록):::green
-  Consumer(Consumer):::green
-  CheckAddress(주소 검토 클릭):::red
-  RabbitMQ((RabbitMQ)):::orange
-
-  Start --> |명부 엑셀 업르도| UnionRegi
-  UnionRegi --> |주소 검토 x 생성| UnionRegiList
-  UnionRegi --> |주소 검토| RabbitMQ
-  UnionRegiList --> |목록에서 실패 목록 찾기| UnionRegiFailList
-  UnionRegiList --> UnionRegiSuccessList
-  UnionRegiFailList --> |1건 씩| CheckAddress
-  ThirdParty --> |30%| Fail
-  ThirdParty --> |70%| Success
-  Consumer --> RabbitMQ
-  Consumer --> |주소 검토| ThirdParty
-  Consumer --> |주소 검토 상태 변경| UnionRegiList
-  CheckAddress --> |주소 검토| ThirdParty
-  CheckAddress --> |주소 검토 상태 변경| UnionRegiList
-
-  linkStyle 3,5 stroke-width:4px, stroke:red
-```
+### 문제점
+- row를 각각 Queuing하고 있다. 성능 문제가 발생할 것 같다.
+- 외부 API인 Docq와 연동하는데 네트워크 문제든 뭐든 실패에 대한 문제 해결 구조가 없다.
+- 위와 비슷한 맥락으로 재시도 전략과 같은 것도 없다.
+- 명부 table이 Rollback이 되고, Message는 발행됐을 경우와 Commit은 됐는데 Message 발행이 실패했을 경우에 대한 고려가 없다.
+- 즉, 외부 API와 연동이 제대로 되지 않았을 경우 어떻게 할 것인지에 대한 구조가 없이 무지성으로 Queuing하고 있다.
+- Docq측 사정으로 5월 20일까지 기다려야하는데 대략 API 스펙은 예상되기 때문에 구조를 interface를 미리 만들어 mock으로 개발을 진행해볼 수 있을 것 같다.   
+- mock으로 미리 주말에 진행해놓으면 20일에 들어갈 때 조금 더 여유가 있을 것이므로 그 때 기능을 빠르게 만들고 문제점이라고 야기한 부분을 더 고민해볼 수 있을 것 같다.
