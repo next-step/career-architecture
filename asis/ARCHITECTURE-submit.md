@@ -25,9 +25,10 @@
 ```text
 <개선방향>
 - MQ send 및 consume 방식에 대한 개선을 통해 아래 목적을 달성해본다.
-    - third party 로의 한꺼번의 요청 부하를 줄인다.
-    - 데이터 bulk 처리 등을 통해 db connection 을 줄인다.
-    - 에러 트래킹을 위해 로깅을 개선한다.   
+    - MQ로 1개의 메시지만 send하고, consume할 때에 db에서 주소검토 대상을 조회해온다.
+    - 데이터 insert/update 역시 bulk 처리를 통해 db connection 을 줄인다.
+    - third party 로의 한꺼번의 요청 부하를 줄인다. (지연처리?)
+    - 에러 트래킹을 위해 로깅도 개선한다.   
 ```
 
 ### AS-IS 명부등록 프로세스(요약)
