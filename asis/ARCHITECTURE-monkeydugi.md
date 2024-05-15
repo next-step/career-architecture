@@ -30,7 +30,6 @@
 8. 등기 발급 신청은 별도의 DB에 들어간다.
 9. 등기 발급 배치는 특정 DB를 읽어 4Click이라는 Third Party에서 등기 발급을 하고, dom table에 end_date를 now()로 갱신하고, 등기 변뎡 여부를 변동 없음으로 변경한다.
 10. 등기 발급 배치는 end_date로 Docq에게 변동 추석 수정 요청을 한다.
-- 
 ```mermaid
 flowchart TD
 	%% Colors %%
