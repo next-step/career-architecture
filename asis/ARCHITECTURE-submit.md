@@ -22,14 +22,6 @@
 - 에러 트래킹도 어렵다.
 ```
 
-```text
-<개선방향>
-- MQ send 및 consume 방식에 대한 개선을 통해 아래 목적을 달성해본다.
-    - MQ로 1개의 메시지만 send하고, consume할 때에 db에서 주소검토 대상을 조회해온다.
-    - 데이터 insert/update 역시 bulk 처리를 통해 db connection 을 줄인다.
-    - third party 로의 한꺼번의 요청 부하를 줄인다. (지연처리?)
-    - 에러 트래킹을 위해 로깅도 개선한다.   
-```
 
 ### AS-IS 명부등록 프로세스(요약)
 ```mermaid
@@ -59,17 +51,17 @@ classDef green fill:#007700,stroke:#000,stroke-width:2px,color:#fff
 ```mermaid
 flowchart TD
 %% Colors %%
-classDef red fill:#FF3399,stroke:#000,stroke-width:2px,color:#fff
-classDef green fill:#007700,stroke:#000,stroke-width:2px,color:#fff
-classDef sky fill:#0000CD,stroke:#000,stroke-width:2px,color:#fff
+    classDef red fill:#FF3399,stroke:#000,stroke-width:2px,color:#fff
+    classDef green fill:#007700,stroke:#000,stroke-width:2px,color:#fff
+    classDef sky fill:#0000CD,stroke:#000,stroke-width:2px,color:#fff
 
     Address(소재지 목록)
 
-    명부등록-->|명부 insert|register[(database)]-->|검토대상|Address
+    명부등록-->|명부/소재지 insert|register[(database)]-->|검토대상|Address
     subgraph 소재지 주소검토
         Address --> |개별 send|MQ
         subgraph "third party 주소검색(loop)"
-            MQ-->|상세정보 조회|locAddress[(database)]-->|주소검색 요청|thirdParty-->|주소검색 결과반환|Response{검색결과}
+            MQ-->|소재지 조회|locAddress[(database)]-->|주소검색 요청|thirdParty-->|주소검색 결과반환|Response{검색 성공여부}
             Response-->|yes|성공처리
             Response-->|no|실패처리-->|결과 저장|locDetailAddress[(database)]
             성공처리-->|결과 저장|locDetailAddress[(database)]
@@ -78,8 +70,7 @@ classDef sky fill:#0000CD,stroke:#000,stroke-width:2px,color:#fff
     locDetailAddress-->명부등록완료-->주소검토결과{주소검토 미완료건 존재여부}
     주소검토결과-->|no|명부전달
     주소검토결과-->|yes|개별작업
-    
+
     thirdParty(third party):::red
     MQ(MQ):::green
-
 ``` 
