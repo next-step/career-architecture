@@ -48,21 +48,31 @@ flowchart TD
 	unionTable[(명부 table)]
 	batch(등기 발급 Batch):::blue
 	CallbackAPI(Callback API):::red
-	AddColumn>컬럼 추가: 등기 변동 여부]:::red
+	AddColumn>컬럼 추가: 등기 변동 여부]
+    LoopPublishing>Loop Publishing]
+    LoopRequestAddDocq>Loop Request Add Docq]
+    LoopRequestUpdateDocq>Loop Request Update Docq]
+    LoopUpdateDataTableFalse>Loop Update DataTable False]
+    LoopUpdateDataTableTrue>Loop Update DataTable True]
+	Publisher(Publisher):::red
 	
-	UnionRegiComplete --> |부동산등기 변동추적 등록 요청 - 엑셀 row 수 만큼 각각 queuing, ex: 5,000건| RabbitMQ
-	UnionRegiComplete --> |등기 변동 여부 갱신 - 변동 없음| dom
+	UnionRegiComplete --> |부동산등기 변동추적 등록 요청 4천 건 List| Publisher --> |부동산등기 변동추적 등록 요청| RabbitMQ
+	Publisher --- LoopPublishing
 	UnionRegiComplete --> |명부 확정으로 상태 변경| unionTable
 	RabbitMQ --> |Consume| ConsumerAddDocq
 	ConsumerAddDocq --> |부동산등기 변동추적 등록 요청| Docq
+	ConsumerAddDocq --- LoopRequestAddDocq
+	batch --- LoopRequestUpdateDocq
+	batch --- LoopUpdateDataTableFalse
 	batch --> |end_date 갱신| dom
 	batch --> |등기 변동 여부 갱신 - 변동 없음| dom
 	batch --> |부동산등기 변동추적 수정 요청 - end_date| Docq
 	Docq --> |변동 정보| CallbackAPI --> |등기 변동 여부 갱신 - 변동 있음| dom
+    CallbackAPI --- LoopUpdateDataTableTrue
     dom --- AddColumn
 ```
 ### 문제점
-- row를 각각 Queuing하고 있다. 성능 문제가 발생할 것 같다.
+- row를 각각 Queuing하는 것, DB에 단건 insert 하는 것이 문제가 될 수 있다.
 - 외부 API인 Docq와 연동하는데 네트워크 문제든 뭐든 실패에 대한 문제 해결 구조가 없다.
 - 위와 비슷한 맥락으로 재시도 전략과 같은 것도 없다.
 - 해당 기능은 변동 되지 않았는데 변동 되었다고 잘못 응답하면 사용자가 등기 발급을 해서 금액이 차감되기 때문에 구조 개선이 확실히 필요하다.
