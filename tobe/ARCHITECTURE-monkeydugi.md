@@ -12,7 +12,9 @@
 ### 개선포인트 분석
 - AMQP로 **메시지 유실**을 없앤다.
   - Transactional Outbox Pattern + Polling Publisher Pattern을 써도 되지만 멱등성 관리 구현 및 DB Table도 만들어야 하기 때문에 채택하지 않는다.
-- 메시지 실패 처리는 **재시도** 3회, 재시도 실패 시 DLX를 사용하여 알림을 받도록하여 직접 확인한다. 재시도까지 실패할 일은 적기 때문에 DLQ까지 자동화 하면 복잡도만 증가하고 제대로 처리도 안된다고 판단.
+- 메시지 실패 처리는 **재시도** 3회, 재시도 실패 시 DLQ로 보내고 DLQ에서 3회 재시도. 이것도 실패 시 슬랙 알림을 하여 원인 파악하여 수동 처리 
+  - 수동 처리는 관리자 기능까지는 아직 만들지 않고, RabbitMQ Manager에서 직접 처리한다.
+  - 이후 필요성을 느끼면 관리자 기능까지 만든다.
 - 명부 확정 시 빠른 사용자 응답을 위해 MQ를 사용하여 **비동기** 처리한다.
   - WebClient를 써도 되겠지만 메시지 유실 관리가 되지 않는다.
 - MQ의 Queue는 Docq의 변동 추적 CRUD는 모두 같은 Queue를 써서 Queue의 개수를 줄여 복잡도를 줄인다.
@@ -32,7 +34,7 @@
   - RabbitMQ 자체가 [성능](https://www.rabbitmq.com/blog/2023/05/17/rabbitmq-3.12-performance-improvements#benchmark-tests)이 3천 건 정도는 전혀 무리가 없다고 공식 문서에 있다.
 ### 프로세스
 ```mermaid
-flowchart LR
+flowchart TD
     %% Colors %%
     classDef blue fill:#2374f7,stroke-width:0px,color:#fff
     classDef green fill:#137433,stroke-width:0px,color:#fff
@@ -42,9 +44,16 @@ flowchart LR
     classDef violet fill:#6600CC,stroke-width:0px,color:#fff
     
     RabbitMQ((RabbitMQ)):::orange
-    DLQ(Dead Letter Queue):::violet
     CallbackAPI(Callback API):::red
     LoopUpdateDataTableTrue>Loop Update DataTable True]
+    RabbitMQManager((RabbitMQ Manager)):::violet
+    subgraph Dead Letter Queue 
+      DLQ(Dead Letter Queue):::violet
+      DLQConsumer(DLQ Consumer):::violet
+      RabbitMQDLQRetry(RabbitMQ Retry):::violet
+      RabbitMQDLQRetryStatus{재시도 성공/실패}:::violet
+      SlackNotification(Slack Notification):::violet
+    end
     subgraph RabbitMQ Consumer
       ConsumerAddDocq(Docq 등록 요청 Consumer):::red
       BatchRequestAddDocq>Batch Request Add Docq]:::violet
@@ -101,5 +110,12 @@ flowchart LR
     batch --> |2. 등기 변동 여부 갱신 - 변동 없음| dom
     Docq --> |변동 정보| CallbackAPI --> |등기 변동 여부 갱신 - 변동 있음| dom
     CallbackAPI --- LoopUpdateDataTableTrue
+    DLQ --> DLQConsumer
+    DLQConsumer --> RabbitMQDLQRetry
+    RabbitMQDLQRetry --> RabbitMQDLQRetryStatus
+    RabbitMQDLQRetryStatus --> |실패| DLQ
+    RabbitMQDLQRetryStatus --> |성공| Docq
+    RabbitMQDLQRetryStatus --> SlackNotification
+    RabbitMQManager --> |메시지 확인 후 재발송 및 상황 파악| Docq
     dom --- AddColumn
 ```

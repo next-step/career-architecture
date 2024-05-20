@@ -4,9 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="e08da31c-3ed6-4b2f-a704-5e60dfa46490" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/tobe/ARCHITECTURE-monkeydugi.md" afterDir="false" />
+    <list default="true" id="e08da31c-3ed6-4b2f-a704-5e60dfa46490" name="Changes" comment="feature: to-be 작성 완료.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tobe/ARCHITECTURE-monkeydugi.md" beforeDir="false" afterPath="$PROJECT_DIR$/tobe/ARCHITECTURE-monkeydugi.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -106,10 +106,43 @@
       <workItem from="1715821530967" duration="21000" />
       <workItem from="1715832934523" duration="5013000" />
       <workItem from="1715937235486" duration="1010000" />
+      <workItem from="1715938783856" duration="14131000" />
+      <workItem from="1716173420072" duration="971000" />
     </task>
+    <task id="LOCAL-00001" summary="refactor: as-is 그림에 Loop 처리하는 부분을 표현">
+      <option name="closed" value="true" />
+      <created>1716020824170</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1716020824170</updated>
+    </task>
+    <task id="LOCAL-00002" summary="refactor: as-is 그림에 Loop 처리하는 부분을 표현">
+      <option name="closed" value="true" />
+      <created>1716024424036</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1716024424036</updated>
+    </task>
+    <task id="LOCAL-00003" summary="feature: to-be 작성 완료.">
+      <option name="closed" value="true" />
+      <created>1716035167854</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1716035167854</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="refactor: as-is 그림에 Loop 처리하는 부분을 표현" />
+    <MESSAGE value="내용 백업용 커밋입니다 보지 않으셔도 됩니다" />
+    <MESSAGE value="feature: to-be 작성 완료." />
+    <option name="LAST_COMMIT_MESSAGE" value="feature: to-be 작성 완료." />
   </component>
 </project>
