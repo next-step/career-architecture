@@ -12,9 +12,8 @@
 ### 개선포인트 분석
 - AMQP로 **메시지 유실**을 없앤다.
   - Transactional Outbox Pattern + Polling Publisher Pattern을 써도 되지만 멱등성 관리 구현 및 DB Table도 만들어야 하기 때문에 채택하지 않는다.
-- 메시지 실패 처리는 **재시도** 3회, 재시도 실패 시 DLQ로 보내고 DLQ에서 3회 재시도. 이것도 실패 시 슬랙 알림을 하여 원인 파악하여 수동 처리 
+- 메시지 실패 처리는 **재시도** 3회 
   - 수동 처리는 관리자 기능까지는 아직 만들지 않고, RabbitMQ Manager에서 직접 처리한다.
-  - 이후 필요성을 느끼면 관리자 기능까지 만든다.
 - 명부 확정 시 빠른 사용자 응답을 위해 MQ를 사용하여 **비동기** 처리한다.
   - WebClient를 써도 되겠지만 메시지 유실 관리가 되지 않는다.
 - MQ의 Queue는 Docq의 변동 추적 CRUD는 모두 같은 Queue를 써서 Queue의 개수를 줄여 복잡도를 줄인다.
@@ -47,12 +46,9 @@ flowchart TD
     CallbackAPI(Callback API):::red
     LoopUpdateDataTableTrue>Loop Update DataTable True]
     RabbitMQManager((RabbitMQ Manager)):::violet
+    SlackNotification(Slack Notification):::violet
     subgraph Dead Letter Queue 
       DLQ(Dead Letter Queue):::violet
-      DLQConsumer(DLQ Consumer):::violet
-      RabbitMQDLQRetry(RabbitMQ Retry):::violet
-      RabbitMQDLQRetryStatus{재시도 성공/실패}:::violet
-      SlackNotification(Slack Notification):::violet
     end
     subgraph RabbitMQ Consumer
       ConsumerAddDocq(Docq 등록 요청 Consumer):::red
@@ -106,16 +102,13 @@ flowchart TD
     ConsumerAddDocq --- BatchRequestAddDocq
     batch --- BatchRequestUpdateDocq
     batch --- BulkUpdateDataTableFalse
-    batch --> |1. end_date 갱신| dom
+    batch --> |1. end_date 갱신| BulkUpdateDataTableFalse
+    BulkUpdateDataTableFalse --> dom
+    
     batch --> |2. 등기 변동 여부 갱신 - 변동 없음| dom
     Docq --> |변동 정보| CallbackAPI --> |등기 변동 여부 갱신 - 변동 있음| dom
     CallbackAPI --- LoopUpdateDataTableTrue
-    DLQ --> DLQConsumer
-    DLQConsumer --> RabbitMQDLQRetry
-    RabbitMQDLQRetry --> RabbitMQDLQRetryStatus
-    RabbitMQDLQRetryStatus --> |실패| DLQ
-    RabbitMQDLQRetryStatus --> |성공| Docq
-    RabbitMQDLQRetryStatus --> SlackNotification
+    DLQ --> SlackNotification
     RabbitMQManager --> |메시지 확인 후 재발송 및 상황 파악| Docq
     dom --- AddColumn
 ```
