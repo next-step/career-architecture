@@ -4,53 +4,66 @@
 ```text
 <개선방향>
 1. (성능이슈) MQ send 및 consume 방식을 개선한다 => db connection 감소
-    - MQ consume 시 loop 돌면서 DB connection 이 계속 발생하는 부분을 변경한다. 
-    - MQ로는 우선 1개의 메시지만 send 한다
-      => 메시지에는 어느 명부에서 요청했는지 id값 정도만 포함한다.
-    - MQ에서 consume할 때 해당 id값으로 db에서 주소검토 대상을 조회 & 처리한다.
-    - 처리결과의 경우 성공목록에 대해서만 결과를 insert/update bulk 저장한다.
-       => 명부등록시 소재지 insert할 때 주소검토여부에 대한 초기데이터가 저장되므로,
-          실패목록의 경우 추가적인 insert/update 과정이 필요없으므로 이 부분은 제거한다. 
+    (1) MQ consumer에서 DB 주소정보 조회하는 부분을 제거한다.
+      - message에 주소 seq가 아닌 주소정보 string을 넘겨서 MQ에서는 주소검토만 실행할 수 있도록 역할을 분리한다.
+      - 대신 주소정보 insert 처리의 commit이 완료된 후 MQ send할 수 있도록 한다.(@TransactionalEventListener 사용)  
+    (2) MQ consumer에서 주소검토결과를 bulk insert/update 로 변경한다.
 2. (외부연동) 실패시 재처리 프로세스를 추가한다 => 자동화를 통한 수작업 축소
-    - 코드레벨에서 최대 3회 재시도함으로써 일시적인 실패건수를 감소시킨다. 
-    - 실제 바로 1번만 재시도만해도 성공하는 경우가 많으므로 성공율을 높일 수 있을 것 같다.
-    - 해당 과정에서 4회 이상 실패시 DLQ에 쌓고 이부분은 관리자가 직접 확인하여 처리한다.(TBD)
-3. (기타) third party 에 인터벌로 요청하도록 개선해본다 => third party 로의 한꺼번의 요청 부하를 줄인다.
-    - third party 측에서 비동기 처리가 되어 있지 않는 것 같다. 한꺼번에 보내면 느려지거나 에러가 발생한다.
-    - 단건으로 주소검색 요청시 sleep 처리를 추가한다.
+    (1) message 발행시 주소를 100개씩 실어 보낸다.
+    (2) 최대 3회 재시도 프로세스를 추가하여 일시적인 실패건수를 감소시킨다. 
+    - 우선 코드레벨에서 즉시 재시도해본다.(즉각적인 처리를 위해)  
+    - 실제 바로 1번만 재시도만해도 성공하는 경우가 많으므로 성공율을 높일 수 있을 것으로 예상된다.
+    (3) 재처리 프로세스에서 로그성 데이터 보관이 필요하므로, retry table(신규 생성)에서 관리한다.
+    - 재처리 과정에서의 메시지 유실에 대비하여(서버다운 등 모종의 이유로 인한), retry table에 insert 한다.
+    - 추후 필요하다면 retry table에서 재처리 3회가 이뤄지지 않은 건에 대해 batch 처리도 생각해본다.
+    (4) third party 로의 한꺼번의 요청 부하를 줄인다.
+    - MQ consumer에서 스레드를 1개로만 설정하여 message 소비를 직렬로 처리하게끔 한다.(현재는 2개) 
     
 ```
 
 ### TO-BE 명부등록 프로세스(상세)
 
 ```mermaid
-flowchart TD
+flowchart TB
+    
 %% Colors %%
 classDef red fill:#FF3399,stroke:#000,stroke-width:2px,color:#fff
 classDef green fill:#007700,stroke:#000,stroke-width:2px,color:#fff
 classDef sky fill:#0000CD,stroke:#000,stroke-width:2px,color:#fff
 
-    Address(소재지 목록)
+    database[(database)]
 
-    명부등록-->|명부/소재지 insert|register[(database)]-->MQ
+
+    명부업로드-->|insert|register[(명부)]
+    명부업로드-->|insert|address[(소재지)]
+    register-->명부저장
+    address-->명부저장
+    명부저장-->|after commit|MQSender
+    MQSender-.->|100개씩 요청|MQ
     subgraph 소재지 주소검토
-        direction LR
-            MQ-->|검토대상 조회|locAddress[(database)]-->Address-->|"주소검색 요청(interval)"|thirdParty
-            subgraph "third party 주소검색(loop)"
-                thirdParty-->|주소검색 결과반환|Response{검색 성공여부}
-                Response-->|no|재처리
-            end
-        재처리-->retry{재시도 횟수}
-        retry-->|3회 이하|thirdParty
-        retry-->|3회 초과|DLQ-.->관리자확인
-            Response-->|yes|성공목록
-            성공목록-->|"결과 저장(bulk)"|locDetailAddress[(database)]
+        direction TB
+        MQConsumer-.->MQ
+        MQConsumer-->주소검토
+            주소검토-->|검색요청|thirdParty-->|검색결과|결과처리
+%%            결과처리-->재시도처리
+            결과처리-->RetryYn{재시도 여부}
+            RetryYn-->|yes|이력저장-->|insert|retryHistory[(재시도 이력)]-->Response
+            RetryYn-->|no|Response{실패목록 유무}
+%%        재시도처리-->Response{실패목록 유무}
+        Response-->|no|결과저장-->|주소검토결과 update|소재지[(소재지)]
+        결과저장-->|insert|addressDetail[(소재지 등기정보)]
+        Response-->|yes|재시도
+        재시도-->retry{재시도 횟수}
+            retry-->|3회 이하|주소검토
+            retry-->|3회 초과|결과저장
+        소재지-->명부등록완료
+        addressDetail-->명부등록완료
+        명부등록완료-->|명부등록상태 update|union[(조합)]
     end
-    locDetailAddress-->명부등록완료-->주소검토결과{주소검토 미완료건 존재여부}
+    union-->주소검토결과{주소검토 미완료건 존재여부}
     주소검토결과-->|no|명부전달
     주소검토결과-->|yes|개별작업
     
     thirdParty(third party):::red
     MQ(MQ):::green
-    DLQ(DLQ):::green
 ``` 
