@@ -39,23 +39,19 @@ classDef sky fill:#0000CD,stroke:#000,stroke-width:2px,color:#fff
     register-->명부저장
     address-->명부저장
     명부저장-->|after commit|MQSender
-    MQSender-.->|100개씩 요청|MQ
-    subgraph 소재지 주소검토
+    MQSender-.->|1개씩 요청|MQ
+    subgraph "소재지 주소검토(loop)"
         direction TB
         MQConsumer-.->MQ
         MQConsumer-->주소검토
-            주소검토-->|검색요청|thirdParty-->|검색결과|결과처리
-%%            결과처리-->재시도처리
-            결과처리-->RetryYn{재시도 여부}
-            RetryYn-->|yes|이력저장-->|insert|retryHistory[(재시도 이력)]-->Response
-            RetryYn-->|no|Response{실패목록 유무}
-%%        재시도처리-->Response{실패목록 유무}
-        Response-->|no|결과저장-->|주소검토결과 update|소재지[(소재지)]
+            주소검토-->|검색요청|thirdParty-->|검색결과|이력저장-->|insert|requestHistory[(주소검토이력)]
+        requestHistory-->Result{성공여부}
+        Result-->|yes|결과저장-->|주소검토결과 update|소재지[(소재지)]
         결과저장-->|insert|addressDetail[(소재지 등기정보)]
-        Response-->|yes|재시도
-        재시도-->retry{재시도 횟수}
-            retry-->|3회 이하|주소검토
-            retry-->|3회 초과|결과저장
+        Result-->|no|재시도
+        재시도-->|재시도횟수 +1|retry{재시도 max 초과여부}
+            retry-->|yes|결과저장
+            retry-->|no|주소검토
         소재지-->명부등록완료
         addressDetail-->명부등록완료
         명부등록완료-->|명부등록상태 update|union[(조합)]
@@ -66,4 +62,4 @@ classDef sky fill:#0000CD,stroke:#000,stroke-width:2px,color:#fff
     
     thirdParty(third party):::red
     MQ(MQ):::green
-``` 
+```
